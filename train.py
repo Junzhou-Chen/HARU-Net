@@ -12,19 +12,27 @@ from pathlib import Path
 from torch import optim
 from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
-
+import os
 import wandb
-from utils.evaluate import evaluate
+from utils import evaluate
 from network import HARUNet
 from utils.data_loading import BasicDataset, CarvanaDataset
 from utils.dice_score import dice_loss
 
+kumar_path = r'/root/autodl-tmp/kumar'
+
 # img path
-dir_img = Path(r'G:\Dataset\MoNuSeg\MoNuSeg\dataAug\img/')
+dir_img = os.path.join(kumar_path, 'train', 'aug', 'img')
 # mask path
-dir_mask = Path(r'G:\Dataset\MoNuSeg\MoNuSeg\dataAug\mask/')
+dir_mask = os.path.join(kumar_path, 'train', 'aug', 'mask')
 # edge path
-dir_edge = Path(r'G:\Dataset\MoNuSeg\MoNuSeg\dataAug\edge/')
+dir_edge = os.path.join(kumar_path, 'train', 'aug', 'edge')
+# img path
+test_img = os.path.join(kumar_path, 'test', 'aug', 'img')
+# mask path
+test_mask = os.path.join(kumar_path, 'test', 'aug', 'mask')
+# mask path
+test_edge = os.path.join(kumar_path, 'test', 'aug', 'edge')
 # .pth save path
 dir_checkpoint = Path('./checkpoints/')
 
@@ -43,21 +51,21 @@ def train_model(
         momentum: float = 0.999,
         gradient_clipping: float = 1.0,
 ):
+    # 1. Create dataset
     try:
-        dataset = CarvanaDataset(dir_img, dir_mask, dir_edge, img_scale)
+        train_set = CarvanaDataset(dir_img, dir_mask, dir_edge, img_scale)
+        val_set = CarvanaDataset(test_img, test_mask, test_edge, img_scale)
     except (AssertionError, RuntimeError, IndexError):
-        dataset = BasicDataset(dir_img, dir_mask, dir_edge, img_scale)
+        train_set = BasicDataset(dir_img, dir_mask, dir_edge, img_scale)
+        val_set = BasicDataset(test_img, test_mask, test_edge, img_scale)
 
-        # 2. Split into train / validation partitions
-    n_val = int(len(dataset) * val_percent)
-    n_train = len(dataset) - n_val
-    train_set, val_set = random_split(dataset, [n_train, n_val], generator=torch.Generator().manual_seed(0))
-
+    # 2. Split into train / validation partitions
+    n_val = len(val_set)
+    n_train = len(train_set)
     # 3. Create data loaders
     loader_args = dict(batch_size=batch_size, num_workers=os.cpu_count(), pin_memory=True)
     train_loader = DataLoader(train_set, shuffle=True, **loader_args)
     val_loader = DataLoader(val_set, shuffle=False, drop_last=True, **loader_args)
-
     # (Initialize logging)
     experiment = wandb.init(project='HARUNet', resume='allow', anonymous='must')
     experiment.config.update(
@@ -80,7 +88,7 @@ def train_model(
     # 4. Set up the optimizer, the loss, the learning rate scheduler and the loss scaling for AMP
     optimizer = optim.RMSprop(model.parameters(),
                               lr=learning_rate, weight_decay=weight_decay, momentum=momentum, foreach=True)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=20)  # goal: maximize Dice score
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=50) # goal: maximize Dice score
     grad_scaler = torch.cuda.amp.GradScaler(enabled=amp)
     criterion = nn.CrossEntropyLoss() if model.n_classes > 1 else nn.BCEWithLogitsLoss()
     global_step = 0
@@ -110,28 +118,27 @@ def train_model(
                         # loss = criterion(masks_pred.squeeze(1), true_masks.float())
                         losses = [dice_loss(F.sigmoid(i.squeeze(1)), true_masks.float(), multiclass=False) for i in
                                   masks_pred]
-                        loss += sum(losses)
+                        loss = sum(losses)
                         # loss += dice_loss(F.sigmoid(masks_pred.squeeze(1)), true_masks.float(), multiclass=False)
                     else:
-                        # Mask loss
                         losses1 = [criterion(i, true_masks) for i in masks_pred]
                         loss1 = sum(losses1)
+                        # loss = criterion(masks_pred, true_masks)
                         losses1 = [dice_loss(
                             F.softmax(i, dim=1).float(),
                             F.one_hot(true_masks, model.n_classes).permute(0, 3, 1, 2).float(),
                             multiclass=True
                         ) for i in masks_pred]
                         loss1 += sum(losses1)
-                        # Edge loss
                         losses2 = [criterion(i, true_edges) for i in edges_pred]
                         loss2 = sum(losses2)
+                        # Dice loss
                         losses2 = [dice_loss(
                             F.softmax(i, dim=1).float(),
                             F.one_hot(true_edges, model.n_classes).permute(0, 3, 1, 2).float(),
                             multiclass=True
                         ) for i in edges_pred]
                         loss2 += sum(losses2)
-                        # Sum of all the loss
                         loss = loss1 + loss2
 
                 # images = images[0]
@@ -190,19 +197,19 @@ def train_model(
         if save_checkpoint:
             Path(dir_checkpoint).mkdir(parents=True, exist_ok=True)
             state_dict = model.state_dict()
-            state_dict['mask_values'] = dataset.mask_values
+            state_dict['mask_values'] = train_set.mask_values
             torch.save(state_dict, str(dir_checkpoint / 'checkpoint_epoch{}.pth'.format(epoch)))
             logging.info(f'Checkpoint {epoch} saved!')
 
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train the HARUNet on images and target masks')
-    parser.add_argument('--epochs', '-e', metavar='E', type=int, default=5, help='Number of epochs')
-    parser.add_argument('--batch-size', '-b', dest='batch_size', metavar='B', type=int, default=1, help='Batch size')
+    parser.add_argument('--epochs', '-e', metavar='E', type=int, default=200, help='Number of epochs')
+    parser.add_argument('--batch-size', '-b', dest='batch_size', metavar='B', type=int, default=8, help='Batch size')
     parser.add_argument('--learning-rate', '-l', metavar='LR', type=float, default=1e-5,
                         help='Learning rate', dest='lr')
     parser.add_argument('--load', '-f', type=str, default=False, help='Load model from a .pth file')
-    parser.add_argument('--scale', '-s', type=float, default=0.5, help='Downscaling factor of the images')
+    parser.add_argument('--scale', '-s', type=float, default=1, help='Downscaling factor of the images')
     parser.add_argument('--validation', '-v', dest='val', type=float, default=10.0,
                         help='Percent of the data that is used as validation (0-100)')
     parser.add_argument('--amp', action='store_true', default=True, help='Use mixed precision')
