@@ -12,9 +12,18 @@ from utils.data_loading import BasicDataset
 from network import HARUNet
 from utils.utils import plot_img_and_mask
 
-in_files = r'G:\Dataset\MoNuSeg\MoNuSeg\test\img/'
-out_masks = r'G:\Dataset\MoNuSeg\MoNuSeg\test\pre_mask/'
-out_edges = r'G:\Dataset\MoNuSeg\MoNuSeg\test\pre_edge/'
+file_path = r'G:\Dataset\kumar'
+in_files = os.path.join(file_path, 'test', 'Images/')
+out_masks = os.path.join(file_path, 'test', 'pre_mask/')
+out_edges = os.path.join(file_path, 'test', 'pre_edge/')
+
+if not os.path.exists(out_edges):
+    os.mkdir(out_edges)
+if not os.path.exists(out_masks):
+    os.mkdir(out_masks)
+# in_files = r'G:\Dataset\MoNuSeg\MoNuSeg\test\img/'
+# out_masks = r'G:\Dataset\MoNuSeg\MoNuSeg\test\pre_mask/'
+# out_edges = r'G:\Dataset\MoNuSeg\MoNuSeg\test\pre_edge/'
 
 
 def predict_img(net,
@@ -44,7 +53,7 @@ def predict_img(net,
 
 def get_args():
     parser = argparse.ArgumentParser(description='Predict masks from input images')
-    parser.add_argument('--model', '-m', default=r'./checkpoints/checkpoint_epoch96.pth',
+    parser.add_argument('--model', '-m', default=r'./checkpoint_epoch63.pth',
                         metavar='FILE',
                         help='Specify the file in which the model is stored')
     parser.add_argument('--input', '-i', default='', metavar='INPUT', help='Filenames of input images')

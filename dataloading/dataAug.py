@@ -20,7 +20,7 @@ def save_IM(img, mask, edge, name):
 if __name__ == '__main__':
     train_path = os.path.join(kumar_path, 'train')
     test_path = os.path.join(kumar_path, 'test')
-    kernel = np.ones((3, 3), np.uint8)
+    kernel = np.ones((2, 2), np.uint8)
     num = 0
     for aug_path in [train_path, test_path]:
         aug_save_path = os.path.join(aug_path, 'aug')

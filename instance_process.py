@@ -5,6 +5,14 @@ import matplotlib.pyplot as plt
 from PIL import Image
 
 
+file_path = r'G:\Dataset\kumar'
+save_file = os.path.join(file_path, 'test', 'ins_mask/')
+mask_file = os.path.join(file_path, 'test', 'pre_mask/')
+edge_file = os.path.join(file_path, 'test', 'pre_edge/')
+
+if not os.path.exists(save_file):
+    os.mkdir(save_file)
+
 def pl_show(img):
     plt.imshow(img)
     plt.show()
@@ -20,9 +28,7 @@ def dilate_mask(mask_in, kernel_size):
     return dilated_mask
 
 
-mask_file = r'G:\Dataset\MoNuSeg\MoNuSeg\test\pre_mask/'
-edge_file = r'G:\Dataset\MoNuSeg\MoNuSeg\test\pre_edge/'
-save_file = r'G:\Dataset\MoNuSeg\MoNuSeg\test\ins_mask/'
+
 
 if __name__ == '__main__':
     filelist = os.listdir(mask_file)
