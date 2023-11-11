@@ -5,10 +5,13 @@ from PIL import Image
 import argparse
 from utils.utils import *
 # true dir
-val_path = r'G:\Dataset\BNS\test\g_mask/'
+val_path = r'G:\Dataset\kumar\test\ins/'
 # predict dir
-out_path = r'G:\Dataset\BNS\test\ins_mask/'
+out_path = r'G:\Dataset\kumar\test\ins_mask/'
 
+def pl_show(img):
+    plt.imshow(img)
+    plt.show()
 
 # Dice
 def get_dice(true, pred):
@@ -26,20 +29,12 @@ def get_dice(true, pred):
     F1 = (2 * precision * recall) / (precision + recall)
     return F1
 
+def remap_label(matrix):
+    unique_labels = np.unique(matrix)
+    mapping = {label: i for i, label in enumerate(unique_labels)}
+    remapped_matrix = np.vectorize(mapping.get)(matrix)
+    return remapped_matrix
 
-# IoU
-def get_IoU(y_true, y_pred):
-    intersection = np.logical_and(y_true, y_pred)
-    union = np.logical_or(y_true, y_pred)
-    iou = intersection.sum() / union.sum()
-    return iou if union.sum() else 1
-
-
-# Pixel accuracy
-def get_PA(y_true, y_pred):
-    positive = np.sum(np.logical_and(y_true, y_pred))
-    negative = np.sum(np.logical_and(np.logical_not(y_true), np.logical_not(y_pred)))
-    return (positive + negative) / (y_true.shape[0] * y_true.shape[1])
 
 def get_fast_aji_plus(true, pred):
     """AJI+, an AJI version with maximal unique pairing to obtain overall intersecion.
@@ -249,15 +244,18 @@ if __name__ == '__main__':
         # print(file)
         true_mask = Image.open(val_path + file)
         pred_mask = Image.open(out_path + file)
-        true_mask = np.array(true_mask)
-        pred_mask = np.array(pred_mask)
-        # pl_show(true_mask)
-        # pl_show(pred_mask)
+        true_mask = np.array(true_mask.copy())
+        true_mask = remap_label(true_mask)
+        pred_mask = np.array(pred_mask.copy())
+        pred_mask = remap_label(pred_mask)
+        pl_show(true_mask)
+        pl_show(pred_mask)
+
         dice.append(get_dice(true_mask.copy(), pred_mask.copy()))
-        # pq.append(get_fast_pq(true_mask, pred_mask))
+        pq.append(get_fast_pq(true_mask, pred_mask))
         # print(pq[-1])
-        # aji.append(get_fast_aji_plus(true_mask, pred_mask))
+        aji.append(get_fast_aji_plus(true_mask, pred_mask))
     print(f"Dice: {np.mean(dice):.4f}")
-    # print(f"PQ: {np.mean(pq):.4f}")
-    # print(f"AJI: {np.mean(aji):.4f}")
+    print(f"PQ: {np.mean(pq):.4f}")
+    print(f"AJI: {np.mean(aji):.4f}")
 
