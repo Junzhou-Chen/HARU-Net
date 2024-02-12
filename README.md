@@ -1,6 +1,6 @@
-# EADB-Net
+# HARU-Net
 
-![EADBNet](./NetWork.svg)
+![HARUNet](./NetWork.svg)
 
 ## Environment
 
@@ -25,7 +25,7 @@ pip install -r requirements.txt
 usage: train.py [-h] [--epochs E] [--batch-size B] [--learning-rate LR]
                 [--load LOAD] [--scale SCALE] [--validation VAL] [--amp]
 
-Train the EADB-Net on images, target masks and target edges
+Train the HARU-Net on images, target masks and target edges
 
 optional arguments:
   -h, --help            show this help message and exit
